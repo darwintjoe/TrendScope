@@ -5,6 +5,7 @@ import { OHLC, IndicatorResult, IndicatorParams } from "@/lib/provider/types";
 import { computeAllIndicators, greenCount, redCount } from "@/lib/indicators";
 import { INDICATOR_REGISTRY, IndicatorMeta } from "@/lib/indicators";
 import { CandlestickChart } from "./CandlestickChart";
+import { IndicatorChart, CHARTABLE_INDICATORS } from "./IndicatorChart";
 import { ALL_RANGES, findRange } from "@/lib/ranges";
 import { applySuffix, stripSuffix } from "@/lib/market";
 
@@ -19,6 +20,8 @@ const VAL_CLR: Record<string, string> = {
   red: "text-red-400",
   grey: "text-zinc-500",
 };
+
+const LOCAL_PARAMS_KEY = "trendscope_local_params";
 
 interface StockDetailProps {
   ticker: string;
@@ -36,7 +39,31 @@ export function StockDetail({ ticker, market, globalParams, onClose }: StockDeta
   const [indicators, setIndicators] = useState<IndicatorResult[]>([]);
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [chartIndicators, setChartIndicators] = useState<string[]>([]);
+  const [chartHeights, setChartHeights] = useState<Record<string, number>>({});
+  const [expandedBg, setExpandedBg] = useState<string | null>(null);
   const [localParams, setLocalParams] = useState<Record<string, IndicatorParams>>({});
+
+  /* load persisted local params for this ticker */
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(LOCAL_PARAMS_KEY);
+      if (saved) {
+        const all = JSON.parse(saved);
+        if (all[ticker]) setLocalParams(all[ticker]);
+      }
+    } catch { /* ignore */ }
+  }, [ticker]);
+
+  /* save local params */
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(LOCAL_PARAMS_KEY);
+      const all = saved ? JSON.parse(saved) : {};
+      all[ticker] = localParams;
+      localStorage.setItem(LOCAL_PARAMS_KEY, JSON.stringify(all));
+    } catch { /* ignore */ }
+  }, [ticker, localParams]);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -73,6 +100,20 @@ export function StockDetail({ ticker, market, globalParams, onClose }: StockDeta
       setIndicators(computeAllIndicators(ohlc, p));
     }
   }, [localParams, globalParams, ohlc]);
+
+  const toggleChart = (name: string) => {
+    setChartIndicators((prev) =>
+      prev.includes(name) ? prev.filter((n) => n !== name) : [...prev, name]
+    );
+  };
+
+  const adjustChartHeight = (name: string, delta: number) => {
+    setChartHeights((prev) => {
+      const current = prev[name] ?? 80;
+      const next = Math.max(40, Math.min(200, current + delta));
+      return { ...prev, [name]: next };
+    });
+  };
 
   const g = greenCount(indicators);
   const r = redCount(indicators);
@@ -122,11 +163,38 @@ export function StockDetail({ ticker, market, globalParams, onClose }: StockDeta
         </div>
 
         {/* chart */}
-        <div className="px-4 pt-2">
+        <div className="px-4 pt-2 space-y-2">
           {loading ? (
-            <div className="flex items-center justify-center h-[220px] text-zinc-500 text-xs">Loading...</div>
+            <div className="flex items-center justify-center h-[220px] text-zinc-500 text-xs gap-2">
+              <svg className="animate-spin h-4 w-4 text-blue-500" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+              </svg>
+              Loading...
+            </div>
           ) : ohlc.length > 0 ? (
-            <CandlestickChart key={chartRange} ohlc={ohlc} height={220} />
+            <>
+              <CandlestickChart key={chartRange} ohlc={ohlc} height={220} />
+              {chartIndicators.map((name) => (
+                <div key={name} className="relative">
+                  <div className="absolute right-1 top-1 flex flex-col gap-0.5 z-10">
+                    <button
+                      onClick={() => adjustChartHeight(name, 20)}
+                      className="w-5 h-5 flex items-center justify-center bg-zinc-800/80 hover:bg-zinc-700 rounded text-[10px] text-zinc-400"
+                    >
+                      +
+                    </button>
+                    <button
+                      onClick={() => adjustChartHeight(name, -20)}
+                      className="w-5 h-5 flex items-center justify-center bg-zinc-800/80 hover:bg-zinc-700 rounded text-[10px] text-zinc-400"
+                    >
+                      −
+                    </button>
+                  </div>
+                  <IndicatorChart name={name} ohlc={ohlc} height={chartHeights[name] ?? 80} />
+                </div>
+              ))}
+            </>
           ) : (
             <div className="flex items-center justify-center h-[220px] text-zinc-600 text-xs">No data</div>
           )}
@@ -159,27 +227,42 @@ export function StockDetail({ ticker, market, globalParams, onClose }: StockDeta
             {indicators.map((ind) => {
               const meta = INDICATOR_REGISTRY.find((m) => m.name === ind.name);
               const isExpanded = expanded === ind.name;
+              const hasChart = CHARTABLE_INDICATORS.includes(ind.name);
+              const chartOn = chartIndicators.includes(ind.name);
               return (
                 <div key={ind.name} className={`rounded-lg border overflow-hidden ${DOT_BG[ind.color]}`}>
                   {/* main row */}
-                  <button
-                    onClick={() => setExpanded(isExpanded ? null : ind.name)}
-                    className="w-full flex items-center gap-2 px-3 py-2.5"
-                  >
-                    <span className={`inline-block w-2.5 h-2.5 rounded-full shrink-0 ${
-                      ind.color === "green" ? "bg-green-500 shadow-[0_0_5px_rgba(34,197,94,0.5)]" :
-                      ind.color === "red" ? "bg-red-500 shadow-[0_0_5px_rgba(239,68,68,0.5)]" :
-                      "bg-zinc-500"
-                    }`} />
-                    <span className="text-[12px] text-zinc-200 flex-1 text-left">{ind.name}</span>
-                    <span className={`text-[11px] tabular-nums font-medium ${VAL_CLR[ind.color]}`}>
-                      {ind.value ?? "—"}
-                    </span>
-                    <span className={`text-[10px] ${VAL_CLR[ind.color]}`}>
-                      {ind.color === "green" ? "▲" : ind.color === "red" ? "▼" : "—"}
-                    </span>
-                    <span className="text-zinc-600 text-[10px]">{isExpanded ? "▾" : "›"}</span>
-                  </button>
+                  <div className="flex items-center">
+                    <button
+                      onClick={() => setExpanded(isExpanded ? null : ind.name)}
+                      className="flex-1 flex items-center gap-2 px-3 py-2.5"
+                    >
+                      <span className={`inline-block w-2.5 h-2.5 rounded-full shrink-0 ${
+                        ind.color === "green" ? "bg-green-500 shadow-[0_0_5px_rgba(34,197,94,0.5)]" :
+                        ind.color === "red" ? "bg-red-500 shadow-[0_0_5px_rgba(239,68,68,0.5)]" :
+                        "bg-zinc-500"
+                      }`} />
+                      <span className="text-[12px] text-zinc-200 flex-1 text-left">{ind.name}</span>
+                      <span className={`text-[11px] tabular-nums font-medium ${VAL_CLR[ind.color]}`}>
+                        {ind.value ?? "—"}
+                      </span>
+                      <span className={`text-[10px] ${VAL_CLR[ind.color]}`}>
+                        {ind.color === "green" ? "▲" : ind.color === "red" ? "▼" : "—"}
+                      </span>
+                      <span className="text-zinc-600 text-[10px]">{isExpanded ? "▾" : "›"}</span>
+                    </button>
+                    {hasChart && (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); toggleChart(ind.name); }}
+                        className={`px-2 py-2.5 text-[10px] shrink-0 ${chartOn ? "text-blue-400" : "text-zinc-600 hover:text-zinc-400"}`}
+                        title={chartOn ? "Hide chart" : "Show chart"}
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z" />
+                        </svg>
+                      </button>
+                    )}
+                  </div>
 
                   {/* expanded panel */}
                   {isExpanded && meta && (
@@ -188,6 +271,22 @@ export function StockDetail({ ticker, market, globalParams, onClose }: StockDeta
                       <p className="text-[10px] text-zinc-500 leading-relaxed">
                         {meta.shortDesc}
                       </p>
+
+                      {/* background - collapsible */}
+                      <div className="space-y-1">
+                        <button
+                          onClick={() => setExpandedBg(expandedBg === ind.name ? null : ind.name)}
+                          className="text-[9px] text-zinc-600 uppercase tracking-wider flex items-center gap-1 hover:text-zinc-400"
+                        >
+                          <span className={`transition-transform ${expandedBg === ind.name ? "rotate-90" : ""}`}>▶</span>
+                          Background
+                        </button>
+                        {expandedBg === ind.name && (
+                          <p className="text-[10px] text-zinc-500 leading-relaxed pl-3 border-l border-zinc-800">
+                            {meta.background}
+                          </p>
+                        )}
+                      </div>
 
                       {/* interpretation */}
                       <div className={`text-[10px] leading-relaxed px-2 py-1.5 rounded ${

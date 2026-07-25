@@ -3,7 +3,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { TickerInput } from "@/components/TickerInput";
 import { TickerTable } from "@/components/TickerTable";
-import { IndicatorSettings } from "@/components/IndicatorSettings";
 import { StockDetail } from "@/components/StockDetail";
 import { LandingPage } from "@/components/LandingPage";
 import { TickerScore, IndicatorParams, OHLC } from "@/lib/provider/types";
@@ -17,6 +16,8 @@ import { ALL_RANGES, findRange } from "@/lib/ranges";
 const MAX_TICKERS = 10;
 const STORAGE_KEY = "trendscope_watchlist";
 const MARKET_KEY = "trendscope_market";
+const AGREED_KEY = "trendscope_agreed";
+const PARAMS_KEY = "trendscope_params";
 const PULL_THRESHOLD = 60;
 
 export default function Home() {
@@ -36,7 +37,7 @@ export default function Home() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const isPulling = useRef(false);
 
-  /* load persisted market + watchlist */
+  /* load persisted market + watchlist + agreed */
   useEffect(() => {
     try {
       const savedMarket = localStorage.getItem(MARKET_KEY);
@@ -48,6 +49,12 @@ export default function Home() {
         if (data.market && savedMarket) setMarket(savedMarket);
         if (data.tickers?.length) setTickers(data.tickers);
       }
+
+      const savedAgreed = localStorage.getItem(AGREED_KEY);
+      if (savedAgreed === "true") setAgreed(true);
+
+      const savedParams = localStorage.getItem(PARAMS_KEY);
+      if (savedParams) setParams(JSON.parse(savedParams));
     } catch { /* ignore */ }
   }, []);
 
@@ -58,6 +65,14 @@ export default function Home() {
       localStorage.setItem(STORAGE_KEY, JSON.stringify({ market, tickers }));
     } catch { /* ignore */ }
   }, [market, tickers, agreed]);
+
+  /* save indicator params */
+  useEffect(() => {
+    if (!agreed) return;
+    try {
+      localStorage.setItem(PARAMS_KEY, JSON.stringify(params));
+    } catch { /* ignore */ }
+  }, [params, agreed]);
 
   useEffect(() => {
     if (tickers.length === 0 && agreed) {
@@ -176,6 +191,7 @@ export default function Home() {
         initialMarket={market}
         onAgree={(m) => {
           localStorage.setItem(MARKET_KEY, m);
+          localStorage.setItem(AGREED_KEY, "true");
           setMarket(m);
           setTickers(getDefaultTickers(m));
           setAgreed(true);
@@ -231,6 +247,7 @@ export default function Home() {
       <div
         ref={scrollRef}
         className="flex-1 overflow-y-auto"
+        style={{ overscrollBehaviorY: "contain" }}
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
@@ -286,9 +303,6 @@ export default function Home() {
             <span>Alli</span>
             <span>CMF</span>
           </div>
-
-          {/* settings */}
-          <IndicatorSettings params={params} onChange={(name, p) => setParams({ ...params, [name]: p })} />
 
           {/* stock cards */}
           <div className="border border-zinc-800 rounded-xl overflow-hidden">
