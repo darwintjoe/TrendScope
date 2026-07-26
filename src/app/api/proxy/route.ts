@@ -65,10 +65,18 @@ export async function GET(req: NextRequest) {
       ohlc,
       meta: {
         symbol: meta.symbol,
+        shortName: meta.shortName,
+        longName: meta.longName,
         currency: meta.currency,
         exchangeName: meta.exchangeName,
+        fullExchangeName: meta.fullExchangeName,
         regularMarketPrice: meta.regularMarketPrice,
         previousClose: meta.previousClose,
+        fiftyTwoWeekHigh: meta.fiftyTwoWeekHigh,
+        fiftyTwoWeekLow: meta.fiftyTwoWeekLow,
+        regularMarketDayHigh: meta.regularMarketDayHigh,
+        regularMarketDayLow: meta.regularMarketDayLow,
+        regularMarketVolume: meta.regularMarketVolume,
       },
     });
   } catch (err) {

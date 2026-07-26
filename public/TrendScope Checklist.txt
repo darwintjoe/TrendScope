@@ -1,0 +1,81 @@
+### *TREND + BIG MONEY TRADING CHECKLIST*
+_System for Swing Trading Daily Charts_
+
+#### *STEP 1: MARKET FILTER - TRADE OR NO TRADE?*
+`If NO, do nothing`
+- [ ] *Alligator*: Not Gray background = Market is AWAKE
+- [ ] *ADX 14 > 25* = Real trend exists
+- [ ] *No Earnings in 3 days* = Avoid news risk
+
+#### *STEP 2: LONG SETUP - 5 CHECKS*
+Need 4/5 + Both Money checks
+
+*TREND CHECKS*
+- [ ] *Price > 200 EMA*
+- [ ] *50 EMA > 200 EMA* 
+- [ ] *MACD > 0*
+- [ ] *Close > Annual VWAP*
+
+*BIG MONEY CHECKS - MUST HAVE BOTH*
+- [ ] *OBV > OBV 20 days ago*
+- [ ] *CMF 20 > 0.05*
+
+*ENTRY TRIGGER*
+- [ ] *BB Squeeze*: BB Width = 120 day low
+- [ ] *Breakout*: Close > Upper BB 
+- [ ] *Volume*: > 1.5x 50-day Average
+- [ ] *Alligator*: Lips > Teeth > Jaw
+- [ ] *Signal*: LIME BUY Triangle
+
+*TRADE PLAN*
+- *Entry*: Break of breakout candle high
+- *Stop Loss*: Below 50 EMA OR Last ZigZag Swing Low
+- *Take Profit 1*: Next ZigZag Swing High
+- *Take Profit 2*: 2R using ATR
+- *Exit Early*: If CMF turns < 0 OR Close < 50 EMA
+
+#### *STEP 3: SHORT SETUP - 5 CHECKS*
+Need 4/5 + Both Money checks
+
+*TREND CHECKS*
+- [ ] *Price < 200 EMA*
+- [ ] *50 EMA < 200 EMA*
+- [ ] *MACD < 0* 
+- [ ] *Close < Annual VWAP*
+
+*BIG MONEY CHECKS - MUST HAVE BOTH*
+- [ ] *OBV < OBV 20 days ago*
+- [ ] *CMF 20 < -0.05*
+
+*ENTRY TRIGGER*
+- [ ] *Breakdown*: Close < Last Swing Low
+- [ ] *Volume*: > 1.5x 50-day Average
+- [ ] *Alligator*: Lips < Teeth < Jaw
+- [ ] *RSI Bear Div*: Price HH, RSI LH
+- [ ] *Signal*: RED SELL Triangle
+
+*TRADE PLAN*
+- *Entry*: Break of breakdown candle low
+- *Stop Loss*: Above 50 EMA OR Last ZigZag Swing High
+- *Take Profit 1*: Next ZigZag Swing Low
+- *Take Profit 2*: 2R using ATR
+- *Exit Early*: If CMF turns > 0 OR Close > 50 EMA
+
+---
+
+#### *INDICATOR SETTINGS QUICK REFERENCE*
+Indicator	Setting	Purpose
+**EMA**	50, 200	Trend Direction
+**ADX**	14, >25	Trend Strength
+**MACD**	12,26,9	Momentum
+**CMF**	20	Money Flow Pressure
+**OBV**	Default	Volume Trend
+**BB**	20, 2.0	Volatility Squeeze
+**RSI**	14	Divergence
+**Alligator**	5,8,13 SMMA	Market State
+**ZigZag**	10%	Structure/SR
+**Volume**	SMA 50	Confirm Breakout
+#### *3 RULES YOU CANNOT BREAK*
+1.  *NO VOLUME = NO TRADE* 
+2.  *DON'T FIGHT THE BACKGROUND COLOR*
+3.  *LET BIG MONEY LEAD. EXIT ON CMF FLIP*

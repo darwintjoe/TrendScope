@@ -5,7 +5,7 @@ import { TickerInput } from "@/components/TickerInput";
 import { TickerTable } from "@/components/TickerTable";
 import { StockDetail } from "@/components/StockDetail";
 import { LandingPage } from "@/components/LandingPage";
-import { TickerScore, IndicatorParams, OHLC } from "@/lib/provider/types";
+import { TickerScore, IndicatorParams, OHLC, CompanyInfo } from "@/lib/provider/types";
 import { computeAllIndicators, greenCount, redCount } from "@/lib/indicators";
 import { sortByTrend } from "@/lib/sort";
 import { applySuffix, stripSuffix, getMarket } from "@/lib/market";
@@ -14,11 +14,15 @@ import { getCachedScore, setCachedScore } from "@/lib/cache";
 import { ALL_RANGES, findRange } from "@/lib/ranges";
 
 const MAX_TICKERS = 10;
-const STORAGE_KEY = "trendscope_watchlist";
+const WATCHLIST_PREFIX = "trendscope_watchlist_";
 const MARKET_KEY = "trendscope_market";
 const AGREED_KEY = "trendscope_agreed";
 const PARAMS_KEY = "trendscope_params";
 const PULL_THRESHOLD = 60;
+
+function getWatchlistKey(market: string): string {
+  return WATCHLIST_PREFIX + market;
+}
 
 export default function Home() {
   const [market, setMarket] = useState("ID");
@@ -43,10 +47,10 @@ export default function Home() {
       const savedMarket = localStorage.getItem(MARKET_KEY);
       if (savedMarket) setMarket(savedMarket);
 
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        const data = JSON.parse(saved);
-        if (data.market && savedMarket) setMarket(savedMarket);
+      const marketToLoad = savedMarket || "ID";
+      const savedWatchlist = localStorage.getItem(getWatchlistKey(marketToLoad));
+      if (savedWatchlist) {
+        const data = JSON.parse(savedWatchlist);
         if (data.tickers?.length) setTickers(data.tickers);
       }
 
@@ -58,11 +62,11 @@ export default function Home() {
     } catch { /* ignore */ }
   }, []);
 
-  /* save watchlist (not market — saved separately on agree) */
+  /* save watchlist per market */
   useEffect(() => {
     if (!agreed) return;
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({ market, tickers }));
+      localStorage.setItem(getWatchlistKey(market), JSON.stringify({ tickers }));
     } catch { /* ignore */ }
   }, [market, tickers, agreed]);
 
@@ -76,15 +80,51 @@ export default function Home() {
 
   useEffect(() => {
     if (tickers.length === 0 && agreed) {
+      const savedWatchlist = localStorage.getItem(getWatchlistKey(market));
+      if (savedWatchlist) {
+        const data = JSON.parse(savedWatchlist);
+        if (data.tickers?.length) {
+          setTickers(data.tickers);
+          return;
+        }
+      }
       setTickers(getDefaultTickers(market));
     }
   }, [market, tickers.length, agreed]);
+
+  /* extract company info from proxy meta response */
+  const extractCompanyInfo = (meta: Record<string, unknown>): CompanyInfo => {
+    return {
+      shortName: meta.shortName as string,
+      longName: meta.longName as string,
+      currency: meta.currency as string,
+      exchangeName: meta.exchangeName as string,
+      fiftyTwoWeekHigh: meta.fiftyTwoWeekHigh as number,
+      fiftyTwoWeekLow: meta.fiftyTwoWeekLow as number,
+      regularMarketDayHigh: meta.regularMarketDayHigh as number,
+      regularMarketDayLow: meta.regularMarketDayLow as number,
+      regularMarketVolume: meta.regularMarketVolume as number,
+    };
+  };
+
+  /* fetch PBV, PER, EPS from Yahoo Finance page scraping */
+  const fetchFundamentals = useCallback(async (symbols: string[]): Promise<Record<string, Partial<CompanyInfo>>> => {
+    try {
+      const res = await fetch(`/api/fundamentals?t=${encodeURIComponent(symbols.join(","))}`);
+      if (!res.ok) return {};
+      const data = await res.json();
+      return data;
+    } catch {
+      return {};
+    }
+  }, []);
 
   const computeAll = useCallback(async (skipCache = false) => {
     setLoading(true);
     const results: TickerScore[] = [];
     const r = findRange(range);
 
+    /* fetch OHLC + meta for all tickers */
     for (const rawTicker of tickers) {
       const fullTicker = applySuffix(rawTicker, market);
       const displayTicker = stripSuffix(fullTicker, market);
@@ -102,9 +142,11 @@ export default function Home() {
           `/api/proxy?t=${encodeURIComponent(fullTicker)}&range=${r.yahooRange}&interval=${r.yahooInterval}`
         );
         let ohlc: OHLC[] = [];
+        let meta: Record<string, unknown> = {};
         if (res.ok) {
           const data = await res.json();
           ohlc = data.ohlc ?? [];
+          meta = data.meta ?? {};
         }
 
         if (ohlc.length < 10) {
@@ -116,9 +158,14 @@ export default function Home() {
         const last = ohlc[ohlc.length - 1];
         const prev = ohlc[ohlc.length - 2];
 
+        const companyName = (meta.shortName as string) ?? (meta.longName as string) ?? displayTicker;
+        const companyInfo = extractCompanyInfo(meta);
+
         const score: TickerScore = {
           ticker: displayTicker,
-          price: last.close,
+          name: companyName,
+          companyInfo,
+          price: meta.regularMarketPrice as number ?? last.close,
           change: last.close - prev.close,
           changePct: prev.close > 0 ? ((last.close - prev.close) / prev.close) * 100 : 0,
           indicators,
@@ -135,7 +182,27 @@ export default function Home() {
 
     setScores(sortByTrend(results));
     setLoading(false);
-  }, [tickers, market, range, params]);
+
+    /* fetch fundamentals (PBV, PER, EPS) in background — doesn't block UI */
+    const fullTickers = tickers.map((t) => applySuffix(t, market));
+    fetchFundamentals(fullTickers).then((fundMap) => {
+      setScores((prev) =>
+        sortByTrend(
+          prev.map((s) => {
+            const fullTicker = applySuffix(s.ticker, market);
+            const fund = fundMap[fullTicker];
+            if (fund && s.companyInfo) {
+              return {
+                ...s,
+                companyInfo: { ...s.companyInfo, ...fund },
+              };
+            }
+            return s;
+          })
+        )
+      );
+    });
+  }, [tickers, market, range, params, fetchFundamentals]);
 
   useEffect(() => {
     if (tickers.length > 0 && agreed) computeAll();
@@ -181,6 +248,15 @@ export default function Home() {
     setTickers(tickers.filter((x) => x !== t));
   };
 
+  const handleLogout = () => {
+    /* save current watchlist before switching */
+    try {
+      localStorage.setItem(getWatchlistKey(market), JSON.stringify({ tickers }));
+    } catch { /* ignore */ }
+    localStorage.removeItem(AGREED_KEY);
+    setAgreed(false);
+  };
+
   const totalGreen = scores.reduce((s, x) => s + x.greenCount, 0);
   const totalRed = scores.reduce((s, x) => s + x.redCount, 0);
 
@@ -193,7 +269,18 @@ export default function Home() {
           localStorage.setItem(MARKET_KEY, m);
           localStorage.setItem(AGREED_KEY, "true");
           setMarket(m);
-          setTickers(getDefaultTickers(m));
+          /* load saved watchlist for this market, or use defaults */
+          const savedWatchlist = localStorage.getItem(getWatchlistKey(m));
+          if (savedWatchlist) {
+            const data = JSON.parse(savedWatchlist);
+            if (data.tickers?.length) {
+              setTickers(data.tickers);
+            } else {
+              setTickers(getDefaultTickers(m));
+            }
+          } else {
+            setTickers(getDefaultTickers(m));
+          }
           setAgreed(true);
         }}
       />
@@ -203,7 +290,7 @@ export default function Home() {
   const marketInfo = getMarket(market);
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-100 flex flex-col">
+    <div className="h-screen bg-zinc-950 text-zinc-100 flex flex-col overflow-hidden">
       {/* header */}
       <header className="border-b border-zinc-800 px-4 py-3 space-y-3 shrink-0">
         <div className="flex items-center justify-between">
@@ -216,6 +303,13 @@ export default function Home() {
               {scores.length}
             </span>
           </div>
+          <button
+            onClick={handleLogout}
+            className="text-[10px] text-zinc-500 hover:text-zinc-300 px-2 py-1 rounded hover:bg-zinc-800 transition-colors"
+            title="Change market"
+          >
+            Switch
+          </button>
         </div>
 
         {/* range row */}
@@ -284,7 +378,7 @@ export default function Home() {
               <span className="flex items-center gap-1">
                 <span className="w-2 h-2 rounded-full bg-zinc-500" />
                 <span className="text-zinc-500">
-                  {scores.length * 10 - totalGreen - totalRed}
+                  {scores.length * 4 - totalGreen - totalRed}
                 </span>
               </span>
             </div>
@@ -292,20 +386,37 @@ export default function Home() {
 
           {/* indicator legend */}
           <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] text-zinc-600">
-            <span>MACD</span>
-            <span>RSI</span>
-            <span>Stoch</span>
-            <span>Vol</span>
-            <span>Frac</span>
-            <span>ZZ</span>
-            <span>EMA</span>
-            <span>Freq</span>
-            <span>Alli</span>
-            <span>CMF</span>
+            <span className="flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-zinc-500" />
+              Market Filter
+            </span>
+            <span className="flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-zinc-500" />
+              Trend
+            </span>
+            <span className="flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-zinc-500" />
+              Money Flow
+            </span>
+            <span className="flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-zinc-500" />
+              Volatility
+            </span>
           </div>
 
-          {/* stock cards */}
-          <div className="border border-zinc-800 rounded-xl overflow-hidden">
+          {/* stock cards with blur overlay when loading */}
+          <div className="relative border border-zinc-800 rounded-xl overflow-hidden">
+            {loading && scores.length > 0 && (
+              <div className="absolute inset-0 bg-zinc-950/60 backdrop-blur-sm z-10 flex items-center justify-center">
+                <div className="flex items-center gap-2 text-zinc-400 text-xs">
+                  <svg className="animate-spin h-4 w-4 text-blue-500" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+                  </svg>
+                  Updating...
+                </div>
+              </div>
+            )}
             <TickerTable
               scores={scores}
               loading={loading}
@@ -327,6 +438,7 @@ export default function Home() {
           ticker={selectedTicker}
           market={market}
           globalParams={params}
+          companyInfo={scores.find((s) => s.ticker === selectedTicker)?.companyInfo}
           onClose={() => setSelectedTicker(null)}
         />
       )}

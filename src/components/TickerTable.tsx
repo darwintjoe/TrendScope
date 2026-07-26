@@ -1,7 +1,22 @@
 "use client";
 
-import { TickerScore } from "@/lib/provider/types";
+import { useState } from "react";
+import { TickerScore, IndicatorResult } from "@/lib/provider/types";
+import { INDICATOR_GROUPS, computeGroupResults } from "@/lib/indicators/groups";
 import { IndicatorDot } from "./IndicatorDot";
+
+const GROUP_DOT_CLASSES: Record<string, string> = {
+  green: "bg-green-500 shadow-[0_0_5px_rgba(34,197,94,0.5)]",
+  red: "bg-red-500 shadow-[0_0_5px_rgba(239,68,68,0.5)]",
+  grey: "bg-zinc-500",
+};
+
+const GROUP_DOT_LABELS: Record<string, string> = {
+  "Market Filter": "MF",
+  Trend: "TR",
+  "Money Flow": "MF",
+  Volatility: "V",
+};
 
 interface TickerTableProps {
   scores: TickerScore[];
@@ -11,6 +26,8 @@ interface TickerTableProps {
 }
 
 export function TickerTable({ scores, loading, onRemove, onSelect }: TickerTableProps) {
+  const [expandedGroup, setExpandedGroup] = useState<string | null>(null);
+
   if (loading && scores.length === 0) {
     return (
       <div className="flex items-center justify-center py-16 text-zinc-500 text-sm">
@@ -36,6 +53,7 @@ export function TickerTable({ scores, loading, onRemove, onSelect }: TickerTable
       {scores.map((s, idx) => {
         const greenN = s.greenCount;
         const redN = s.redCount;
+        const groupResults = computeGroupResults(s.indicators);
 
         return (
           <div
@@ -69,12 +87,37 @@ export function TickerTable({ scores, loading, onRemove, onSelect }: TickerTable
                     : ""}
                 </span>
               </div>
+              {s.name && (
+                <div className="text-[10px] text-zinc-500 truncate mt-0.5">{s.name}</div>
+              )}
 
-              {/* indicator dots row */}
+              {/* group dots row */}
               <div className="flex items-center gap-1.5 mt-1.5">
-                {s.indicators.map((ind) => (
-                  <IndicatorDot key={ind.name} indicator={ind} />
-                ))}
+                {groupResults.map(({ group, color, children }) => {
+                  const isExpanded = expandedGroup === `${s.ticker}-${group.name}`;
+                  return (
+                    <div key={group.name} className="relative">
+                      <button
+                        onClick={() => setExpandedGroup(isExpanded ? null : `${s.ticker}-${group.name}`)}
+                        className="flex items-center gap-0.5"
+                        title={`${group.name}: ${color}`}
+                      >
+                        <span
+                          className={`inline-block w-2.5 h-2.5 rounded-full shrink-0 ${GROUP_DOT_CLASSES[color]}`}
+                        />
+                        <span className="text-[8px] text-zinc-600">{GROUP_DOT_LABELS[group.name]}</span>
+                      </button>
+                      {/* expanded child dots */}
+                      {isExpanded && (
+                        <div className="absolute top-0 left-full ml-1 flex items-center gap-1 bg-zinc-900 border border-zinc-700 rounded px-1.5 py-1 z-10">
+                          {children.map((child) => (
+                            <IndicatorDot key={child.name} indicator={child} />
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             </div>
 

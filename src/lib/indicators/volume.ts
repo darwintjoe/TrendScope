@@ -1,7 +1,14 @@
 import { OHLC, IndicatorResult, IndicatorParams } from "../provider/types";
 
-const DEFAULTS: IndicatorParams = { avgPeriod: 20 };
+const DEFAULTS: IndicatorParams = { avgPeriod: 50, threshold: 1.5 };
 
+/**
+ * Volume vs 50-day average — confirms or weakens price moves.
+ *
+ * Green: Volume > 1.5x average + closing up
+ * Red:   Volume > 1.5x average + closing down
+ * Grey:  Volume below 1.5x average
+ */
 export function volumeIndicator(
   ohlc: OHLC[],
   params?: IndicatorParams
@@ -21,8 +28,8 @@ export function volumeIndicator(
   const isGreen = recent.close > recent.open;
 
   let color: "green" | "red" | "grey" = "grey";
-  if (volRatio > 1.2 && isGreen) color = "green";
-  else if (volRatio > 1.2 && !isGreen) color = "red";
+  if (volRatio > p.threshold && isGreen) color = "green";
+  else if (volRatio > p.threshold && !isGreen) color = "red";
 
   return {
     name: "Volume",

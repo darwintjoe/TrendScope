@@ -29,8 +29,28 @@ export function LandingPage({ initialMarket, onAgree }: LandingPageProps) {
             What is TrendScope
           </h2>
           <p className="text-[11px] text-zinc-400 leading-relaxed">
-            TrendScope scores stocks using <span className="text-zinc-200 font-medium">10 technical indicators</span> — MACD, RSI, Stochastic, Volume, Fractal, ZigZag, EMA Cross, Frequency (FFT), Alligator, and Chaikin Money Flow.
-            Each indicator outputs a color: <span className="text-green-400 font-medium">green</span> for uptrend, <span className="text-red-400 font-medium">red</span> for downtrend, <span className="text-zinc-400 font-medium">grey</span> for neutral. Stocks with more green indicators tend to have stronger uptrend possibilities.
+            TrendScope groups indicators into <span className="text-zinc-200 font-medium">4 categories</span> based on the TrendScope Checklist:
+          </p>
+          <ul className="mt-2 space-y-1 text-[11px] text-zinc-400 leading-relaxed">
+            <li className="flex gap-2">
+              <span className="text-blue-400 shrink-0">•</span>
+              <span><span className="text-zinc-200 font-medium">Market Filter</span> — Alligator (sleeping/awake) + ADX (trend strength)</span>
+            </li>
+            <li className="flex gap-2">
+              <span className="text-blue-400 shrink-0">•</span>
+              <span><span className="text-zinc-200 font-medium">Trend</span> — Price vs 200 EMA, 50/200 EMA Cross, MACD, VWAP</span>
+            </li>
+            <li className="flex gap-2">
+              <span className="text-blue-400 shrink-0">•</span>
+              <span><span className="text-zinc-200 font-medium">Money Flow</span> — OBV, CMF, Volume</span>
+            </li>
+            <li className="flex gap-2">
+              <span className="text-blue-400 shrink-0">•</span>
+              <span><span className="text-zinc-200 font-medium">Volatility</span> — BB Squeeze, Breakout, Signal Triangle</span>
+            </li>
+          </ul>
+          <p className="mt-2 text-[11px] text-zinc-400 leading-relaxed">
+            Each category shows a color dot: <span className="text-green-400 font-medium">green</span> for uptrend, <span className="text-red-400 font-medium">red</span> for downtrend, <span className="text-zinc-400 font-medium">grey</span> for neutral. Tap a category to see individual indicators.
           </p>
         </section>
 
@@ -54,11 +74,35 @@ export function LandingPage({ initialMarket, onAgree }: LandingPageProps) {
             </li>
             <li className="flex gap-2">
               <span className="text-blue-400 shrink-0">4.</span>
-              <span>Tap a ticker name to open the chart, indicator values, and interpretation.</span>
+              <span>Tap a category dot to expand and see individual indicators.</span>
             </li>
             <li className="flex gap-2">
               <span className="text-blue-400 shrink-0">5.</span>
+              <span>Tap a ticker name to open the chart, company info, and indicators.</span>
+            </li>
+            <li className="flex gap-2">
+              <span className="text-blue-400 shrink-0">6.</span>
               <span>Switch ranges from 30 minutes to 5 years. Adjust indicator parameters.</span>
+            </li>
+          </ul>
+        </section>
+
+        {/* signal triangle */}
+        <section className="mb-5">
+          <h2 className="text-xs font-semibold text-zinc-300 uppercase tracking-wider mb-1.5">
+            Signal Triangle
+          </h2>
+          <p className="text-[11px] text-zinc-400 leading-relaxed">
+            The Signal indicator prints when ALL rules across all 4 categories agree:
+          </p>
+          <ul className="mt-2 space-y-1 text-[11px] text-zinc-400 leading-relaxed">
+            <li className="flex gap-2">
+              <span className="text-green-400 shrink-0">▲</span>
+              <span><span className="text-green-400 font-medium">BUY Signal</span> — Bullish trend + money flow + volatility squeeze + breakout with volume</span>
+            </li>
+            <li className="flex gap-2">
+              <span className="text-red-400 shrink-0">▼</span>
+              <span><span className="text-red-400 font-medium">SELL Signal</span> — Bearish trend + distribution + breakdown with volume</span>
             </li>
           </ul>
         </section>
@@ -75,7 +119,7 @@ export function LandingPage({ initialMarket, onAgree }: LandingPageProps) {
             </li>
             <li className="flex gap-2">
               <span className="text-yellow-500 shrink-0">•</span>
-              <span>Only 10 indicators — does not cover all technical analysis methods.</span>
+              <span>12 indicators in 4 groups — does not cover all technical analysis methods.</span>
             </li>
             <li className="flex gap-2">
               <span className="text-yellow-500 shrink-0">•</span>
